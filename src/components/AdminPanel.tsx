@@ -17,12 +17,18 @@ import {
   Settings,
   QrCode,
   Copy,
+  BarChart3,
+  ShieldCheck,
+  Eye,
+  ZoomIn,
+  CheckCircle2,
 } from "lucide-react";
-import QRCode from "qrcode";
 import { uploadActivityImage } from "@/lib/activity-upload";
 import { formatRupiah, formatDateId } from "@/lib/format";
 import { api, toast } from "@/lib/client";
+import { isPending } from "@/lib/payment";
 import type { PaymentAccount } from "@/lib/types";
+import AdminDonationDashboard from "./AdminDonationDashboard";
 
 /** Data kegiatan yang dikirim dari halaman /admin (src/app/admin/page.tsx). */
 export interface ActivityRow {
@@ -74,14 +80,15 @@ interface Initial {
 }
 
 const TABS = [
+  { key: "dashboard", label: "Dashboard & Grafik", icon: BarChart3 },
+  { key: "verify", label: "Verifikasi Donasi", icon: ShieldCheck },
   { key: "applications", label: "Kandidat Relawan", icon: FileText },
   { key: "activities", label: "Kegiatan Relawan", icon: CalendarDays },
   { key: "donations", label: "Program Donasi", icon: CircleDollarSign },
-  { key: "verify", label: "Verifikasi Donasi", icon: Wallet },
   { key: "certificates", label: "Terbitkan Sertifikat", icon: Award },
-  { key: "txs", label: "Transaksi", icon: Wallet },
+  { key: "txs", label: "Riwayat Transaksi", icon: Wallet },
   { key: "users", label: "Pengguna", icon: Users },
-  { key: "settings", label: "Pengaturan", icon: Settings },
+  { key: "settings", label: "Pengaturan QRIS & Rekening", icon: Settings },
 ];
 
 const statusChip = (s: string) =>
@@ -92,7 +99,8 @@ const statusChip = (s: string) =>
     : "bg-amber-100 text-amber-800";
 
 export default function AdminPanel({ initial }: { initial: Initial }) {
-  const [tab, setTab] = useState("applications");
+  const [tab, setTab] = useState("dashboard");
+  const [previewProof, setPreviewProof] = useState<any | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [showDon, setShowDon] = useState(false);
@@ -224,18 +232,22 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
   };
 
   /* --- QR absensi kegiatan (dipakai member saat hari pelaksanaan) --- */
-  const makeQr = (a: ActivityRow) => {
+  const makeQr = async (a: ActivityRow) => {
     if (!a.absenCode) {
       setQrImg("");
       return;
     }
-    QRCode.toDataURL(`NARASSA:${a.id}:${a.absenCode}`, {
-      width: 320,
-      margin: 1,
-      color: { dark: "#0f172a", light: "#ffffff" },
-    })
-      .then(setQrImg)
-      .catch(() => setQrImg(""));
+    try {
+      const QRCode = (await import("qrcode")).default;
+      const url = await QRCode.toDataURL(`NARASSA:${a.id}:${a.absenCode}`, {
+        width: 320,
+        margin: 1,
+        color: { dark: "#0f172a", light: "#ffffff" },
+      });
+      setQrImg(url);
+    } catch {
+      setQrImg("");
+    }
   };
 
   const openQr = (a: ActivityRow) => {
@@ -296,7 +308,7 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
             <t.icon className="w-3.5 h-3.5" /> {t.label}
             {t.key === "verify" && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === t.key ? "bg-white text-brand-dark" : "bg-slate-200"}`}>
-                {initial.txs.filter((x) => !x.status || x.status === "Menunggu Verifikasi").length}
+                {initial.txs.filter(isPending).length}
               </span>
             )}
             {t.key === "applications" && (
@@ -313,6 +325,15 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
           <Plus className="w-3.5 h-3.5" /> Terbitkan Kegiatan
         </button>
       </div>
+
+      {/* DASHBOARD DONASI HARIAN & GRAFIK VISUALISASI */}
+      {tab === "dashboard" && (
+        <AdminDonationDashboard
+          txs={initial.txs}
+          donations={initial.donations}
+          onNavigateToVerify={() => setTab("verify")}
+        />
+      )}
 
       {/* KANDIDAT */}
       {tab === "applications" && (
@@ -555,66 +576,126 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
 
       {/* VERIFIKASI DONASI - admin mengecek bukti transfer */}
       {tab === "verify" && (
-        <div className="space-y-3">
-          {initial.txs.filter((t) => !t.status || t.status === "Menunggu Verifikasi").length === 0 && (
-            <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center text-xs text-slate-400">
-              Tidak ada donasi yang menunggu verifikasi.
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-teal-50/70 border border-teal-200/80 rounded-2xl p-4">
+            <div>
+              <h3 className="text-sm font-extrabold text-teal-950 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-teal-700" />
+                Antrean Verifikasi Donasi QRIS &amp; Transfer
+              </h3>
+              <p className="text-xs text-teal-800/80 mt-0.5">
+                Periksa bukti transfer donatur sebelum dana dihitung masuk ke target program donasi
+              </p>
+            </div>
+            <span className="text-xs font-black bg-teal-700 text-white px-3 py-1 rounded-full shadow-2xs">
+              {initial.txs.filter(isPending).length} Menunggu
+            </span>
+          </div>
+
+          {initial.txs.filter(isPending).length === 0 && (
+            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center space-y-2">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+              <p className="font-extrabold text-sm text-slate-800">Semua Donasi Telah Diverifikasi</p>
+              <p className="text-xs text-slate-400">Tidak ada bukti donasi yang tertunda saat ini.</p>
             </div>
           )}
+
           {initial.txs
-            .filter((t) => !t.status || t.status === "Menunggu Verifikasi")
+            .filter(isPending)
             .map((t) => (
               <div
                 key={t.id}
-                className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                className="bg-white border border-slate-200 hover:border-teal-300 rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-2xs transition"
               >
-                <div className="flex gap-3 min-w-0">
+                <div className="flex items-start gap-4 min-w-0">
                   {t.bukti ? (
-                    <button onClick={() => window.open(t.bukti, "_blank")} title="Perbesar bukti">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <button
+                      type="button"
+                      onClick={() => setPreviewProof(t)}
+                      className="group relative w-20 h-20 sm:w-28 sm:h-28 shrink-0 rounded-xl overflow-hidden border border-slate-200 shadow-2xs bg-slate-50 cursor-pointer"
+                      title="Klik untuk memperbesar bukti"
+                    >
                       <img
                         src={t.bukti}
                         alt="Bukti pembayaran"
-                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-slate-200"
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
                       />
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-white text-[11px] font-bold gap-1">
+                        <ZoomIn className="w-4 h-4" /> Perbesar
+                      </div>
                     </button>
                   ) : (
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-[10px] text-slate-400 text-center px-1">
-                      Tidak ada bukti
+                    <div className="w-20 h-20 sm:w-28 sm:h-28 shrink-0 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-[10px] text-slate-400 text-center p-2">
+                      <span>Tidak Ada Bukti Foto</span>
                     </div>
                   )}
-                  <div className="space-y-1 min-w-0">
+
+                  <div className="space-y-1.5 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-extrabold text-slate-900 text-sm">{t.donorName}</h3>
-                      <span className="font-black text-brand-dark text-sm">{formatRupiah(t.amount)}</span>
-                      <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                      <h3 className="font-extrabold text-slate-900 text-base">{t.donorName}</h3>
+                      <span className="font-black text-teal-800 text-base">{formatRupiah(t.amount)}</span>
+                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                         Menunggu Verifikasi
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-600 font-semibold">
-                      {initial.donations.find((d) => d.id === t.donationId)?.title || "Program donasi"}
+
+                    <p className="text-xs text-slate-700 font-bold">
+                      Program: {initial.donations.find((d) => d.id === t.donationId)?.title || "Program donasi"}
                     </p>
-                    <p className="text-[11px] text-slate-400">
-                      {t.method} · {t.createdAt}
-                      {t.reference ? ` · Ref ${t.reference}` : ""}
-                      {t.userId ? " · akun terlogin" : " · tamu"}
-                    </p>
-                    {t.note && <p className="text-[11px] italic text-slate-500">"{t.note}"</p>}
-                    <p className="text-[10px] text-slate-400">Klik gambar untuk memperbesar.</p>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                      <span>Metode: <strong className="text-slate-800 font-mono">{t.method}</strong></span>
+                      <span>•</span>
+                      <span>Tanggal: <strong className="text-slate-800">{t.createdAt}</strong></span>
+                      {t.reference && (
+                        <>
+                          <span>•</span>
+                          <span>Ref: <strong className="text-slate-800 font-mono">{t.reference}</strong></span>
+                        </>
+                      )}
+                      {t.donorEmail && (
+                        <>
+                          <span>•</span>
+                          <span>Email: <strong className="text-slate-800">{t.donorEmail}</strong></span>
+                        </>
+                      )}
+                      {t.donorPhone && (
+                        <>
+                          <span>•</span>
+                          <span>WA: <strong className="text-slate-800">{t.donorPhone}</strong></span>
+                        </>
+                      )}
+                    </div>
+
+                    {t.note && (
+                      <p className="text-xs italic text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">
+                        "{t.note}"
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
+
+                <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                  {t.bukti && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewProof(t)}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Lihat Bukti
+                    </button>
+                  )}
                   <button
                     disabled={busy}
                     onClick={() =>
                       run(
                         () => api(`/api/admin/txs/${t.id}`, { method: "PATCH", body: { action: "approve" } }),
-                        "Donasi disetujui - dana masuk ke jumlah terkumpul."
+                        "Donasi disetujui! Dana masuk ke total program dan email feedback telah dikirim."
                       )
                     }
-                    className="px-4 py-2 bg-brand hover:bg-brand-dark text-white font-bold rounded-lg text-xs flex items-center gap-1.5"
+                    className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs transition"
                   >
-                    <Check className="w-3.5 h-3.5" /> Setujui &amp; Verifikasi
+                    <Check className="w-3.5 h-3.5" /> Setujui &amp; Konfirmasi
                   </button>
                   <button
                     disabled={busy}
@@ -624,7 +705,7 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
                         "Donasi ditolak - dana tidak dihitung."
                       )
                     }
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition"
                   >
                     Tolak
                   </button>
@@ -741,22 +822,19 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {initial.txs.map((t) => {
-                  const dn = initial.users.length >= 0 ? t : t;
-                  return (
-                    <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-bold text-slate-800">
-                        {t.anon ? "Donatur Anonim" : t.donorName}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 max-w-[200px] truncate">{t.donationId}</td>
-                      <td className="py-3 px-4 text-slate-500">{t.method}</td>
-                      <td className="py-3 px-4 text-slate-500">{t.createdAt}</td>
-                      <td className="py-3 px-4 text-right font-black text-brand-dark">
-                        {formatRupiah(t.amount)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {initial.txs.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50">
+                    <td className="py-3 px-4 font-bold text-slate-800">
+                      {t.anon ? "Donatur Anonim" : t.donorName}
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 max-w-[200px] truncate">{t.donationId}</td>
+                    <td className="py-3 px-4 text-slate-500">{t.method}</td>
+                    <td className="py-3 px-4 text-slate-500">{t.createdAt}</td>
+                    <td className="py-3 px-4 text-right font-black text-brand-dark">
+                      {formatRupiah(t.amount)}
+                    </td>
+                  </tr>
+                ))}
                 {initial.txs.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-400">
@@ -1273,6 +1351,122 @@ export default function AdminPanel({ initial }: { initial: Initial }) {
               {busy ? "Menyimpan..." : editDonId ? "Simpan Perubahan" : "Terbitkan Program"}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* LIGHTBOX MODAL PREVIEW BUKTI TRANSFER DONASI */}
+      {previewProof && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto">
+            {/* Header Modal */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div>
+                <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-teal-700" />
+                  Pratinjau Bukti Donasi: {previewProof.donorName}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Nominal: <strong className="text-teal-800 font-extrabold">{formatRupiah(previewProof.amount)}</strong> • Metode: <strong className="font-mono text-slate-800">{previewProof.method}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewProof(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                aria-label="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Gambar Bukti Transfer (Scrollable) */}
+            <div className="p-4 overflow-y-auto flex-1 bg-slate-900/5 flex flex-col items-center justify-center min-h-[240px]">
+              {previewProof.bukti ? (
+                <img
+                  src={previewProof.bukti}
+                  alt="Bukti Transfer Donasi"
+                  className="max-h-[50vh] sm:max-h-[55vh] object-contain rounded-xl border border-slate-200 shadow-md bg-white"
+                />
+              ) : (
+                <p className="text-xs text-slate-400">Gambar tidak tersedia</p>
+              )}
+            </div>
+
+            {/* Rincian Donasi */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs space-y-1.5">
+              <div className="grid sm:grid-cols-2 gap-2 text-slate-600">
+                <p>
+                  <strong>Program:</strong> {initial.donations.find((d) => d.id === previewProof.donationId)?.title || "Program donasi"}
+                </p>
+                <p>
+                  <strong>Waktu Kirim:</strong> {previewProof.createdAt}
+                </p>
+                {previewProof.reference && (
+                  <p>
+                    <strong>No. Ref:</strong> <span className="font-mono font-bold text-slate-800">{previewProof.reference}</span>
+                  </p>
+                )}
+                {previewProof.donorEmail && (
+                  <p>
+                    <strong>Email:</strong> {previewProof.donorEmail}
+                  </p>
+                )}
+                {previewProof.donorPhone && (
+                  <p>
+                    <strong>WhatsApp:</strong> {previewProof.donorPhone}
+                  </p>
+                )}
+              </div>
+              {previewProof.note && (
+                <p className="text-slate-600 italic pt-1 border-t border-slate-200/60">
+                  <strong>Pesan/Doa:</strong> "{previewProof.note}"
+                </p>
+              )}
+            </div>
+
+            {/* Aksi Verifikasi */}
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-white gap-3">
+              <button
+                type="button"
+                onClick={() => setPreviewProof(null)}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition"
+              >
+                Tutup
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const id = previewProof.id;
+                    setPreviewProof(null);
+                    run(
+                      () => api(`/api/admin/txs/${id}`, { method: "PATCH", body: { action: "reject" } }),
+                      "Donasi ditolak - dana tidak dihitung."
+                    );
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition"
+                >
+                  Tolak
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const id = previewProof.id;
+                    setPreviewProof(null);
+                    run(
+                      () => api(`/api/admin/txs/${id}`, { method: "PATCH", body: { action: "approve" } }),
+                      "Donasi disetujui! Dana masuk ke program dan email terima kasih telah dikirim."
+                    );
+                  }}
+                  className="px-5 py-2 bg-teal-700 hover:bg-teal-800 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs transition"
+                >
+                  <Check className="w-4 h-4" /> Setujui &amp; Konfirmasi
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

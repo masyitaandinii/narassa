@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getDB } from "@/lib/db";
 import { formatDateId } from "@/lib/format";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function BlogDetail({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -29,11 +29,11 @@ export default async function BlogDetail({ params }: { params: Promise<{ slug: s
         <img src={post.image} alt="" className="w-full h-56 sm:h-72 object-cover" />
         <div className="p-6 sm:p-8 space-y-4">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-brand-dark bg-brand-light px-2.5 py-1 rounded uppercase">
+            <span className="text-xs font-semibold text-brand">
               {post.category}
             </span>
             <span className="text-[11px] text-slate-400">
-              {post.author} · {formatDateId(post.createdAt)}
+              · {post.author} · {formatDateId(post.createdAt)}
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900">{post.title}</h1>

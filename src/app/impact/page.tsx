@@ -12,7 +12,7 @@ import {
 import { getDB } from "@/lib/db";
 import { formatRupiah, formatShortRupiah } from "@/lib/format";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 export const metadata = { title: "Dampak Sosial NARASSA" };
 
 export default async function ImpactPage() {
@@ -61,9 +61,6 @@ export default async function ImpactPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       <div className="bg-gradient-to-r from-brand-deep to-brand text-white rounded-2xl p-6 sm:p-8 space-y-3">
-        <span className="bg-white/20 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
-          Laporan Dampak Publik
-        </span>
         <h1 className="text-2xl sm:text-3xl font-black">Dampak Sosial NARASSA</h1>
         <p className="text-sm text-white/90 max-w-2xl">
           Transparansi adalah janji kami. Berikut ringkasan kontribusi komunitas donatur dan

@@ -1,7 +1,7 @@
 import { getDB } from "@/lib/db";
 import CalendarView from "@/components/CalendarView";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 export const metadata = { title: "Kalender Agenda & Jadwal Aksi Relawan" };
 
 export default async function CalendarPage() {

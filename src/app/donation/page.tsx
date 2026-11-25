@@ -3,7 +3,7 @@ import DonationCard from "@/components/DonationCard";
 import { EmptyState } from "@/components/ui";
 import DonationFilter from "@/components/DonationFilter";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 15;
 export const metadata = { title: "Program Donasi Online & Galang Dana Terpercaya" };
 
 export default async function DonationPage({

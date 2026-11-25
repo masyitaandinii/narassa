@@ -2,7 +2,9 @@ export function formatRupiah(val: number): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
-    maximumFractionDigits: 0,
+    // nominal bulat tampil tanpa desimal; nominal bebas (mis. 1.500,50) tampil utuh
+    minimumFractionDigits: Number.isInteger(val) ? 0 : 2,
+    maximumFractionDigits: 2,
   }).format(val);
 }
 

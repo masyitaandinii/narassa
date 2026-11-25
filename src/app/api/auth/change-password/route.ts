@@ -1,5 +1,5 @@
 import { error, json, readBody } from "@/lib/api";
-import { mutate } from "@/lib/db";
+import { getDB, mutate } from "@/lib/db";
 import { getSessionUser, hashPassword, verifyPassword, clearSessionCookie } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -9,8 +9,8 @@ export async function POST(req: Request) {
   if (!body.oldPassword || !body.newPassword) return error("Semua field wajib diisi.");
   if (body.newPassword.length < 6) return error("Password baru minimal 6 karakter.");
 
-  const { getDB } = await import("@/lib/db");
-  const full = (await getDB()).users.find((u) => u.id === user.id);
+  const db = await getDB();
+  const full = db.users.find((u) => u.id === user.id);
   if (!full) return error("Akun tidak ditemukan.");
   const ok = await verifyPassword(body.oldPassword, full.passwordHash);
   if (!ok) return error("Password lama salah.");

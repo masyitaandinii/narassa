@@ -1,68 +1,90 @@
 /**
  * ============================================================================
- *  API DONASI MEMBER (alur VERIFIKASI ADMIN)
- *  1. Member memilih nominal + metode -> melihat nomor rekening tujuan (dari
- *     tabel settings "payment_accounts") -> transfer -> mengunggah BUKTI
- *     pembayaran lewat website.
- *  2. Endpoint ini HANYA membuat transaksi berstatus "Menunggu Verifikasi"
- *     (dengan bukti). Dana BELUM masuk ke jumlah terkumpul.
- *  3. Admin mengecek uang sudah masuk -> menekan Setujui di tab
- *     "Verifikasi Donasi" (PATCH /api/admin/txs/[id]) -> barulah
- *     collected/donorsCount bertambah dan donor menerima notifikasi.
+ *  API DONASI PENGGUNA (QRIS Pribadi & Transfer Manual)
+ *  1. Donatur memilih nominal dan metode pembayaran (QRIS Pribadi / Transfer Bank).
+ *  2. Donatur mengunggah bukti pembayaran & nomor referensi.
+ *  3. Transaksi dicatat dengan status "Menunggu Verifikasi" (TX_PENDING).
+ *  4. Dana BELUM ditambahkan ke total program sebelum disetujui admin.
+ *  5. Sistem mengirimkan email tanda terima & ucapan terima kasih ke donatur.
  * ============================================================================
  */
 import { error, json, readBody } from "@/lib/api";
-import { mutate, uid } from "@/lib/db";
+import { getDB, getPaymentAccounts, mutate, uid } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { formatRupiah } from "@/lib/format";
+import { MAX_DONATION, MIN_DONATION, TX_PENDING } from "@/lib/payment";
+import { sendDonationSubmittedEmail } from "@/lib/email";
 
-/** Batas aman bukti base64 (setelah kompres di browser, biasanya ~200-400 KB) */
-const MAX_BUKTI_CHARS = 1_500_000;
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const user = await getSessionUser();
-  const body = await readBody<{
-    amount: number;
-    method: string;
-    anon: boolean;
-    donorName: string;
-    note: string;
-    bukti: string;
-    reference?: string;
-  }>(req);
+  const [user, body] = await Promise.all([
+    getSessionUser(),
+    readBody<{
+      amount: number;
+      method: string;
+      anon: boolean;
+      donorName: string;
+      donorEmail?: string;
+      donorPhone?: string;
+      note?: string;
+      reference?: string;
+      bukti?: string;
+    }>(req),
+  ]);
 
-  const amount = Number(body.amount);
-  if (!amount || amount < 1000) return error("Minimal donasi Rp1.000.");
-  if (!body.donorName?.trim()) return error("Nama donatur wajib diisi.");
-  if (!body.method?.trim()) return error("Metode pembayaran wajib dipilih.");
+  if (!user) {
+    return error("Silakan login terlebih dahulu untuk berdonasi.", 401);
+  }
 
-  // bukti pembayaran WAJIB — ini syarat verifikasi admin
-  const bukti = (body.bukti || "").trim();
-  if (!bukti.startsWith("data:image/")) {
-    return error("Bukti pembayaran wajib diunggah (format gambar).");
+  // Nominal bebas (boleh desimal), dibulatkan ke 2 digit
+  const amount = Math.round(Number(body.amount) * 100) / 100;
+  if (!Number.isFinite(amount) || amount < MIN_DONATION)
+    return error(`Minimal donasi ${formatRupiah(MIN_DONATION)}.`);
+  if (amount > MAX_DONATION) return error(`Maksimal donasi ${formatRupiah(MAX_DONATION)}.`);
+
+  const donorName = (body.donorName || "").trim().slice(0, 100);
+  if (!donorName) return error("Nama donatur wajib diisi.");
+
+  const donorEmail = (body.donorEmail || user?.email || "").trim().toLowerCase();
+  const donorPhone = (body.donorPhone || user?.phone || "").trim();
+
+  // Validasi metode pembayaran
+  const method = (body.method || "").trim();
+  if (!method) return error("Metode pembayaran wajib dipilih.");
+  const validMethods = getPaymentAccounts(await getDB());
+  if (!validMethods.some((a) => a.method.toLowerCase() === method.toLowerCase())) {
+    return error("Metode pembayaran tidak valid atau tidak tersedia.");
   }
-  if (bukti.length > MAX_BUKTI_CHARS) {
-    return error("Ukuran bukti pembayaran terlalu besar. Maksimal ±1 MB setelah dikompres.");
-  }
+
+  let campaignTitle = "";
+  const txId = uid("tx-");
+  const createdAt = new Date().toISOString().split("T")[0];
 
   const saved = await mutate((m) => {
     const campaign = m.donations.find((d) => d.id === id);
     if (!campaign) return null;
+    campaignTitle = campaign.title;
 
-    const txId = uid("tx-");
+    // Simpan transaksi dengan status Menunggu Verifikasi
+    // PENTING: Dana (campaign.collected) dan donorsCount TIDAK bertambah sekarang.
+    // Dana hanya bertambah setelah admin memverifikasi bukti di /admin -> Verifikasi Donasi.
     m.txs.unshift({
       id: txId,
       donationId: campaign.id,
       userId: user?.id ?? null,
-      donorName: body.anon ? "Donatur Anonim" : body.donorName.trim(),
+      donorName: body.anon ? "Donatur Anonim" : donorName,
+      donorEmail: donorEmail || undefined,
+      donorPhone: donorPhone || undefined,
       amount,
-      method: body.method.trim(),
+      method,
       anon: !!body.anon,
-      note: body.note || "",
-      status: "Menunggu Verifikasi",
-      bukti,
-      reference: (body.reference || "").trim(),
-      createdAt: new Date().toISOString().split("T")[0],
+      note: (body.note || "").trim().slice(0, 300),
+      status: TX_PENDING,
+      bukti: body.bukti || "",
+      reference: (body.reference || "").trim().slice(0, 100),
+      createdAt,
     });
 
     if (user) {
@@ -70,10 +92,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         id: uid("nt-"),
         userId: user.id,
         title: "Bukti donasi terkirim",
-        body: `Donasi ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)} untuk "${campaign.title}" sedang menunggu verifikasi admin.`,
+        body: `Bukti donasi ${formatRupiah(amount)} untuk "${campaign.title}" sedang menunggu verifikasi tim admin. Terima kasih!`,
         type: "donasi",
         read: false,
-        createdAt: new Date().toISOString().split("T")[0],
+        createdAt,
       });
     }
     return { txId };
@@ -81,11 +103,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   if (!saved) return error("Program donasi tidak ditemukan.", 404);
 
+  // Kirim feedback ucapan terima kasih via email jika email tersedia
+  if (donorEmail) {
+    // Jalankan secara asynchronous tanpa memblokir respons
+    sendDonationSubmittedEmail({
+      to: donorEmail,
+      donorName: body.anon ? "Donatur Budiman" : donorName,
+      campaignTitle,
+      amount: formatRupiah(amount),
+      txId,
+      method,
+      reference: body.reference,
+    }).catch((err) => console.error("Gagal mengirim email donasi:", err));
+  }
+
   return json({
     ok: true,
-    status: "Menunggu Verifikasi",
+    status: TX_PENDING,
     txId: saved.txId,
-    message:
-      "Bukti pembayaran terkirim. Donasi akan tercatat setelah diverifikasi oleh admin NARASSA.",
+    message: "Bukti donasi berhasil dikirim dan sedang menunggu verifikasi admin. Terima kasih atas kepedulian Anda!",
   });
 }

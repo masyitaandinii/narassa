@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
-  Search,
   User,
   LogOut,
   ShieldCheck,
@@ -13,9 +12,8 @@ import {
   ChevronRight,
   Menu,
   X,
-  Leaf,
   Users,
-  Sparkles,
+  TrendingUp,
   FileText,
   Newspaper,
 } from "lucide-react";
@@ -38,7 +36,7 @@ const MAIN_LINKS = [
 ];
 
 const MORE_LINKS = [
-  { href: "/impact", label: "Dampak Sosial", icon: Sparkles },
+  { href: "/impact", label: "Dampak Sosial", icon: TrendingUp },
   { href: "/attendance", label: "Absensi QR", icon: Users },
   { href: "/certificates", label: "E-Sertifikat", icon: FileText },
   { href: "/feed", label: "Kabar Terbaru", icon: Newspaper },
@@ -52,32 +50,50 @@ export default function Header() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifs, setNotifs] = useState<any[]>([]);
-  const [query, setQuery] = useState("");
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
+    let active = true;
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((d) => setUser(d.user || null))
-      .catch(() => {});
+      .then((d) => {
+        if (!active) return;
+        const u = d.user || null;
+        setUser(u);
+        if (u) {
+          fetch("/api/notifications")
+            .then((r) => (r.ok ? r.json() : { items: [] }))
+            .then((res) => {
+              if (active) setNotifs(res.items || []);
+            })
+            .catch(() => { });
+        } else {
+          setNotifs([]);
+        }
+      })
+      .catch(() => { });
+
+    return () => {
+      active = false;
+    };
   }, [pathname]);
 
+  /* Close dropdowns on outside click */
   useEffect(() => {
-    if (user) {
-      fetch("/api/notifications")
-        .then((r) => (r.ok ? r.json() : { items: [] }))
-        .then((d) => setNotifs(d.items || []))
-        .catch(() => {});
-    }
-  }, [user, pathname]);
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-dropdown]")) {
+        setMoreOpen(false);
+        setNotifOpen(false);
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
 
   const unread = notifs.filter((n) => !n.read).length;
-
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push(`/donation?q=${encodeURIComponent(query)}`);
-  };
 
   const logout = async () => {
     await api("/api/auth/logout", { method: "POST" });
@@ -94,58 +110,69 @@ export default function Header() {
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  /** Pill navigasi: aktif = bg-[#E8F5E9] text brand + border emerald. */
-  const pillCls = (active: boolean) =>
-    `px-4 py-1.5 rounded-full text-xs whitespace-nowrap transition-all ${
-      active
-        ? "bg-brand-light text-brand font-bold border border-emerald-200/80"
-        : "text-slate-600 border border-transparent hover:bg-slate-100 hover:text-slate-900 font-medium"
-    }`;
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/60 shadow-sm">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-lg border-b border-slate-200/50 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-3 sm:gap-5">
+        <div className="flex items-center justify-between h-16 gap-4">
           {/* --- Brand Logo --- */}
-          <Link href="/" className="shrink-0 flex items-center gap-2">
-            <Leaf className="w-6 h-6 sm:w-7 sm:h-7 text-brand fill-brand/15" />
-            <span className="flex flex-col leading-none">
-              <span className="font-black text-lg tracking-tight text-brand leading-none">
-                NARASSA
-              </span>
-              <span className="text-[10px] font-medium text-slate-400">Dampak Sosial</span>
+          <Link href="/" className="shrink-0 flex items-center gap-2.5" aria-label="NARASSA — Beranda">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo-narassa-icon.svg"
+              alt=""
+              width={46}
+              height={40}
+              fetchPriority="high"
+              className="h-10 w-auto"
+            />
+            <span className="font-black text-xl tracking-tight text-brand leading-none">
+              NARASSA
             </span>
           </Link>
 
-          {/* --- Desktop: pill navigation --- */}
-          <nav className="hidden md:flex items-center gap-1 font-medium text-xs text-slate-600">
+          {/* --- Desktop Navigation --- */}
+          <nav className="hidden md:flex items-center gap-1">
             {MAIN_LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className={pillCls(pathname === l.href)}>
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  isActive(l.href)
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-slate-600 hover:bg-sage hover:text-brand"
+                }`}
+              >
                 {l.label}
               </Link>
             ))}
-            <div className="relative">
+
+            {/* More dropdown */}
+            <div className="relative" data-dropdown>
               <button
-                onClick={() => setMoreOpen(!moreOpen)}
-                className={`px-4 py-1.5 rounded-full text-xs flex items-center gap-1 transition-all ${
+                onClick={(e) => { e.stopPropagation(); setMoreOpen(!moreOpen); }}
+                className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-1 transition-all duration-200 ${
                   moreOpen
-                    ? "bg-brand-light text-brand font-bold border border-emerald-200/80"
-                    : "text-slate-600 border border-transparent hover:bg-slate-100 hover:text-slate-900 font-medium"
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-slate-600 hover:bg-sage hover:text-brand"
                 }`}
               >
-                Lainnya <ChevronDown className="w-3.5 h-3.5" />
+                Lainnya
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`} />
               </button>
               {moreOpen && (
-                <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50">
+                <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   {MORE_LINKS.map((l) => (
                     <Link
                       key={l.href}
                       href={l.href}
                       onClick={() => setMoreOpen(false)}
-                      className="flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-brand-soft hover:text-brand-dark"
+                      className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-sage hover:text-brand transition-colors"
                     >
                       <span className="flex items-center gap-2.5">
-                        <l.icon className="w-4 h-4" /> {l.label}
+                        <l.icon className="w-4 h-4 text-slate-400" /> {l.label}
                       </span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
                     </Link>
@@ -155,49 +182,52 @@ export default function Header() {
             </div>
           </nav>
 
-          {/* --- Right: bell + profile pill --- */}
+          {/* --- Right: bell + profile --- */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Notification bell */}
-            <div className="relative">
+            <div className="relative" data-dropdown>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setNotifOpen(!notifOpen);
                   if (!notifOpen) markRead();
                 }}
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-600 relative border border-slate-200/60"
+                className="p-2.5 rounded-xl hover:bg-sage text-slate-500 hover:text-brand relative transition-colors"
                 aria-label="Notifikasi"
               >
                 <Bell className="w-5 h-5" />
                 {unread > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-brand ring-2 ring-white" />
+                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white" />
                 )}
               </button>
               {notifOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 text-xs space-y-3">
-                  <div className="flex justify-between items-center border-b pb-2 font-bold text-slate-900">
-                    <span>Notifikasi Program</span>
-                    <span className="text-[10px] bg-brand-light text-brand px-2 py-0.5 rounded-full">
-                      {unread} Baru
-                    </span>
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-4 z-50 text-sm space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <span className="font-bold text-slate-900">Notifikasi</span>
+                    {unread > 0 && (
+                      <span className="text-xs bg-red-50 text-red-600 px-2.5 py-0.5 rounded-full font-semibold">
+                        {unread} Baru
+                      </span>
+                    )}
                   </div>
                   {user ? (
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {notifs.length === 0 && (
-                        <p className="text-slate-400 py-4 text-center">Belum ada notifikasi.</p>
+                        <p className="text-slate-400 py-6 text-center text-sm">Belum ada notifikasi.</p>
                       )}
                       {notifs.slice(0, 6).map((n) => (
-                        <div key={n.id} className="p-2.5 bg-brand-soft rounded-xl space-y-0.5">
-                          <p className="font-bold text-slate-900">{n.title}</p>
-                          <p className="text-[11px] text-slate-600">{n.body}</p>
+                        <div key={n.id} className={`p-3 rounded-xl space-y-1 ${n.read ? "bg-slate-50" : "bg-brand-soft border border-brand-light"}`}>
+                          <p className="font-semibold text-slate-900 text-sm">{n.title}</p>
+                          <p className="text-xs text-slate-500">{n.body}</p>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="py-3 text-center space-y-2">
-                      <p className="text-slate-500">Login untuk melihat notifikasi Anda.</p>
+                    <div className="py-4 text-center space-y-3">
+                      <p className="text-slate-500 text-sm">Login untuk melihat notifikasi.</p>
                       <Link
                         href="/auth/login"
-                        className="inline-block px-4 py-2 bg-brand text-white font-bold rounded-full text-[11px]"
+                        className="inline-block px-5 py-2 bg-brand text-white font-semibold rounded-xl text-sm hover:bg-brand-dark transition"
                       >
                         Masuk
                       </Link>
@@ -208,31 +238,30 @@ export default function Header() {
             </div>
 
             {user ? (
-              /* --- User profile pill (avatar inisial + nama + caret) --- */
-              <div className="relative">
+              <div className="relative" data-dropdown>
                 <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 bg-brand-light border border-emerald-200/80 rounded-full pl-1 pr-3 py-1 hover:border-brand/40 transition"
+                  onClick={(e) => { e.stopPropagation(); setUserMenuOpen(!userMenuOpen); }}
+                  className="flex items-center gap-2 bg-sage border border-sage-dark rounded-xl pl-1.5 pr-3.5 py-1.5 hover:border-brand/30 transition-all"
                 >
-                  <span className="w-6 h-6 rounded-full bg-brand text-white font-bold flex items-center justify-center text-[10px]">
+                  <span className="w-7 h-7 rounded-lg bg-brand text-white font-bold flex items-center justify-center text-xs">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
-                  <span className="text-xs font-bold text-brand">{user.name}</span>
-                  <ChevronDown className={`w-3 h-3 text-brand transition ${userMenuOpen ? "rotate-180" : ""}`} />
+                  <span className="hidden sm:inline text-sm font-semibold text-slate-700">{user.name}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
                 </button>
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs font-bold text-slate-700">
+                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 text-sm font-medium text-slate-700">
                     <Link
                       href="/profile"
                       onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-brand-soft hover:text-brand-dark"
+                      className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl hover:bg-sage hover:text-brand transition-colors"
                     >
                       <User className="w-4 h-4" /> Profil Saya
                     </Link>
                     <Link
                       href="/notification"
                       onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-brand-soft hover:text-brand-dark"
+                      className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl hover:bg-sage hover:text-brand transition-colors"
                     >
                       <Bell className="w-4 h-4" /> Notifikasi
                     </Link>
@@ -240,14 +269,15 @@ export default function Header() {
                       <Link
                         href="/admin"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-amber-800 hover:bg-amber-50"
+                        className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-amber-700 hover:bg-amber-50 transition-colors"
                       >
                         <ShieldCheck className="w-4 h-4" /> Panel Admin
                       </Link>
                     )}
+                    <div className="border-t border-slate-100 my-1" />
                     <button
                       onClick={logout}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 text-left"
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-red-600 hover:bg-red-50 text-left transition-colors"
                     >
                       <LogOut className="w-4 h-4" /> Keluar
                     </button>
@@ -255,16 +285,16 @@ export default function Header() {
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-2">
                 <Link
                   href="/auth/login"
-                  className="hidden sm:inline-block text-xs font-bold px-4 py-1.5 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-100"
+                  className="hidden sm:inline-block text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-sage hover:text-brand transition-colors"
                 >
                   Masuk
                 </Link>
                 <Link
                   href="/auth/register"
-                  className="text-xs font-bold px-4 py-1.5 rounded-full bg-brand hover:bg-brand-dark text-white shadow-sm transition"
+                  className="text-sm font-semibold px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white shadow-sm transition-all"
                 >
                   Daftar
                 </Link>
@@ -272,7 +302,7 @@ export default function Header() {
             )}
 
             <button
-              className="md:hidden p-2 text-slate-600 rounded-full hover:bg-slate-100"
+              className="md:hidden p-2 text-slate-600 rounded-xl hover:bg-sage transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Menu"
             >
@@ -281,69 +311,23 @@ export default function Header() {
           </div>
         </div>
 
-        {/* --- Mobile: baris pill navigasi (sesuai contoh) --- */}
-        <div className="md:hidden flex overflow-x-auto px-1 pb-2 gap-1 text-xs">
-          {MAIN_LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
-                pathname === l.href
-                  ? "bg-brand text-white font-semibold shadow-sm"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-
+        {/* --- Mobile Menu Overlay --- */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-slate-100 py-3 max-h-[75vh] overflow-y-auto">
-            <form
-              onSubmit={submitSearch}
-              className="flex items-center bg-slate-100 border border-slate-200 rounded-full p-1 mb-2.5"
-            >
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Cari kegiatan, donasi, atau berita..."
-                className="w-full bg-transparent text-xs px-3 py-1.5 focus:outline-none text-slate-800"
-              />
-              <button type="submit" className="p-1.5 text-slate-400 hover:text-brand shrink-0">
-                <Search className="w-4 h-4" />
-              </button>
-            </form>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[...MAIN_LINKS, ...MORE_LINKS].map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`px-3 py-2.5 rounded-2xl text-xs font-bold hover:bg-brand-soft ${
-                    pathname === l.href ? "bg-brand-light text-brand" : "text-slate-700"
-                  }`}
-                >
-                  {l.label}
-                </Link>
-              ))}
+          <div className="md:hidden border-t border-slate-100 py-4 space-y-2">
+            {[...MAIN_LINKS, ...MORE_LINKS].map((l) => (
               <Link
-                href={user ? "/profile" : "/auth/login"}
+                key={l.href}
+                href={l.href}
                 onClick={() => setMobileOpen(false)}
-                className="px-3 py-2.5 rounded-2xl text-xs font-bold text-slate-700 hover:bg-brand-soft flex items-center gap-2"
+                className={`block px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  isActive(l.href)
+                    ? "bg-brand text-white"
+                    : "text-slate-700 hover:bg-sage hover:text-brand"
+                }`}
               >
-                <User className="w-4 h-4" /> Profil
+                {l.label}
               </Link>
-              {user?.role === "admin" && (
-                <Link
-                  href="/admin"
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2.5 rounded-2xl text-xs font-bold text-amber-800 bg-amber-50 flex items-center gap-2"
-                >
-                  <ShieldCheck className="w-4 h-4" /> Panel Admin
-                </Link>
-              )}
-            </div>
+            ))}
           </div>
         )}
       </div>

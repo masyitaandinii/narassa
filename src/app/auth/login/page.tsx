@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, Lock, Mail } from "lucide-react";
 import { api, toast } from "@/lib/client";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 function LoginInner() {
   const [identifier, setIdentifier] = useState("");
@@ -38,6 +39,19 @@ function LoginInner() {
           </div>
           <h1 className="font-black text-slate-900 text-lg">Masuk Akun NARASSA</h1>
           <p className="text-xs text-slate-500">Donasi &amp; relawan dalam satu akun.</p>
+        </div>
+
+        {/* Google SSO Button */}
+        <div className="space-y-3">
+          <GoogleSignInButton next={next} action="login" />
+
+          <div className="flex items-center gap-3">
+            <span className="flex-1 h-px bg-slate-200" />
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              atau masuk dengan email
+            </span>
+            <span className="flex-1 h-px bg-slate-200" />
+          </div>
         </div>
 
         <form onSubmit={submit} className="space-y-3 text-xs">
@@ -85,8 +99,11 @@ function LoginInner() {
 
         <p className="text-xs text-center text-slate-500">
           Belum punya akun?{" "}
-          <Link href="/auth/register" className="text-brand-dark font-bold">
-            Daftar Relawan
+          <Link
+            href={next !== "/" ? `/auth/register?next=${encodeURIComponent(next)}` : "/auth/register"}
+            className="text-brand-dark font-bold hover:underline"
+          >
+            Daftar Akun Baru
           </Link>
         </p>
       </div>

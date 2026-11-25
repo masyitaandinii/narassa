@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Target, CalendarClock, Wallet } from "lucide-react";
+import { Users, Target, CalendarClock, ShieldCheck, Heart, Sparkles, CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 
 export interface FeedItem {
@@ -17,11 +17,11 @@ export interface TxItem {
   name: string;
   meta: string;
   amount: string;
-  /** status verifikasi admin (default tampil "Dikonfirmasi" untuk data lama) */
   status?: string;
+  note?: string;
 }
 
-const TABS = ["Kisah Lengkap", "Kabar Terbaru", "Rincian Dana"];
+const TABS = ["Tentang", "Supporter", "Kabar Terbaru"];
 
 export default function DonationTabs({
   description,
@@ -44,136 +44,124 @@ export default function DonationTabs({
 }) {
   const [active, setActive] = useState(TABS[0]);
 
-  const parts = description.split(/(?<=\.)\s+/);
-  const quote = parts[0] || description;
-  const rest = parts.slice(1).join(" ");
+  const paragraphs = description.split(/\n+/).filter(Boolean);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <div className="flex overflow-x-auto border-b border-slate-200">
+    <div className="space-y-4">
+      {/* Tab Navigation Ala Peduly dengan Palet NARASSA */}
+      <div className="flex border-b border-slate-200">
         {TABS.map((t) => {
-          const label = t === "Kabar Terbaru" ? `Kabar Terbaru ${feed.length}` : t;
           const on = active === t;
+          const countBadge =
+            t === "Supporter" ? `(${donors})` : t === "Kabar Terbaru" && feed.length > 0 ? `(${feed.length})` : "";
           return (
             <button
               key={t}
               onClick={() => setActive(t)}
-              className={`px-4 sm:px-6 py-3.5 text-xs font-extrabold whitespace-nowrap border-b-2 transition ${
+              className={`flex-1 py-3.5 text-center text-xs sm:text-sm font-extrabold transition relative ${
                 on
-                  ? "border-brand text-brand-dark bg-brand-soft"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                  ? "text-brand-dark"
+                  : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              {label}
+              <span>{t} {countBadge}</span>
+              {on && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand rounded-t-full" />
+              )}
             </button>
           );
         })}
       </div>
 
-      <div className="p-5 sm:p-6">
-        {active === "Kisah Lengkap" && (
+      {/* Konten Tab */}
+      <div className="py-2">
+        {/* TAB 1: TENTANG KAMPANYE */}
+        {active === "Tentang" && (
           <div className="space-y-4">
-            <blockquote className="border-l-4 border-brand bg-brand-soft rounded-r-xl p-4 sm:p-5">
-              <p className="text-sm sm:text-[15px] text-slate-700 italic leading-relaxed">
-                “{quote}”
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+              Tentang Kampanye
+            </h3>
+            <div className="text-sm text-slate-600 leading-relaxed space-y-3 font-normal">
+              {paragraphs.map((p, idx) => (
+                <p key={idx}>{p}</p>
+              ))}
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 mt-4">
+              <p className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                Jaminan Transparansi &amp; Keamanan NARASSA
               </p>
-            </blockquote>
-            {rest && <p className="text-sm text-slate-600 leading-relaxed">{rest}</p>}
-            <div className="pt-2 border-t border-slate-100 space-y-3">
-              <h3 className="font-black text-slate-900 text-sm">Kenapa Program Ini Penting?</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Setiap donasi yang masuk diverifikasi dan disalurkan langsung untuk kebutuhan
-                program. Laporan penyaluran dapat dipantau melalui tab Rincian Dana serta halaman
-                Dampak Sosial NARASSA.
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Setiap rupiah yang terkumpul diverifikasi manual oleh staf administrasi dan disalurkan secara berkala sesuai kebutuhan langsung para penerima manfaat. Laporan penyaluran dapat diakses publik kapan saja.
               </p>
             </div>
           </div>
         )}
 
-        {active === "Kabar Terbaru" && (
+        {/* TAB 2: SUPPORTER / DONATUR */}
+        {active === "Supporter" && (
           <div className="space-y-3">
-            {feed.length === 0 ? (
-              <p className="text-xs text-slate-400 py-6 text-center">
-                Belum ada kabar terbaru untuk program ini.
-              </p>
+            <div className="flex items-center justify-between pb-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                Para Orang Baik ({txs.length} Riwayat Terkini)
+              </h3>
+              <span className="text-xs text-slate-500 font-bold">
+                Total {donors} Donatur
+              </span>
+            </div>
+
+            {txs.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                Jadilah orang baik pertama yang berdonasi untuk program ini!
+              </div>
             ) : (
-              feed.map((f) => (
-                <div key={f.id} className="p-4 rounded-xl border border-slate-200 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-extrabold uppercase bg-brand-light text-brand-dark px-2 py-0.5 rounded">
-                      {f.tag}
-                    </span>
-                    <span className="text-[11px] text-slate-400">{f.date}</span>
+              <div className="space-y-2.5">
+                {txs.map((t) => (
+                  <div
+                    key={t.id}
+                    className="p-3.5 bg-white border border-slate-100 hover:border-slate-200 rounded-2xl flex items-start gap-3 shadow-2xs transition"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-brand-light text-brand-dark font-black text-xs flex items-center justify-center shrink-0">
+                      <Heart className="w-4 h-4 fill-current" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-extrabold text-slate-900 truncate">{t.name}</p>
+                        <p className="text-xs font-black text-brand-dark shrink-0">{t.amount}</p>
+                      </div>
+                      <p className="text-[10px] text-slate-400">{t.meta}</p>
+                      {t.note && (
+                        <p className="text-xs italic text-slate-600 bg-slate-50 p-2 rounded-xl mt-1">
+                          "{t.note}"
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <h4 className="font-bold text-sm text-slate-900">{f.title}</h4>
-                  <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2">{f.body}</p>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         )}
 
-        {active === "Rincian Dana" && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { icon: Wallet, label: "Dana Terkumpul", value: formatRupiah(collected) },
-                { icon: Target, label: "Target", value: formatRupiah(target) },
-                { icon: Users, label: "Total Donatur", value: donors.toLocaleString("id-ID") },
-                { icon: CalendarClock, label: "Batas Akhir", value: endDateLabel },
-              ].map((s) => (
-                <div key={s.label} className="bg-slate-50 rounded-xl p-3.5 space-y-1">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    <s.icon className="w-3.5 h-3.5 text-brand" /> {s.label}
+        {/* TAB 3: KABAR TERBARU */}
+        {active === "Kabar Terbaru" && (
+          <div className="space-y-3">
+            {feed.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                Belum ada pembaruan kabar terbaru untuk kampanye ini.
+              </div>
+            ) : (
+              feed.map((f) => (
+                <div key={f.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-extrabold text-slate-900">{f.title}</span>
+                    <span className="text-[11px] text-slate-400">{f.date}</span>
                   </div>
-                  <p className="text-sm font-black text-slate-900 break-words">{s.value}</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">{f.body}</p>
                 </div>
-              ))}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-brand-dark">{pct}% tercapai</span>
-                <span className="text-slate-400 font-normal">
-                  Kurang {formatRupiah(Math.max(0, target - collected))}
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                <div className="bg-brand h-full rounded-full" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="font-black text-slate-900 text-sm">Transparansi Donatur Terakhir</h3>
-              {txs.length === 0 ? (
-                <p className="text-xs text-slate-400">Belum ada donasi masuk pada program ini.</p>
-              ) : (
-                <ul className="divide-y divide-slate-100">
-                  {txs.map((t) => (
-                    <li key={t.id} className="py-2.5 flex justify-between items-center gap-3 text-xs">
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-800 truncate">{t.name}</p>
-                        <p className="text-[11px] text-slate-400 truncate">{t.meta}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span
-                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                            (t.status || "Dikonfirmasi") === "Dikonfirmasi"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : (t.status || "") === "Ditolak"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {t.status || "Dikonfirmasi"}
-                        </span>
-                        <span className="font-bold text-brand-dark">{t.amount}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+              ))
+            )}
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ import { formatDateId } from "@/lib/format";
 import { EmptyState } from "@/components/ui";
 import { ArrowRight } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 export const metadata = { title: "Warta Lingkungan" };
 
 export default async function BlogPage({
@@ -69,10 +69,7 @@ export default async function BlogPage({
             >
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.image} alt="" className="w-full h-44 sm:h-48 object-cover" />
-                <span className="absolute top-3 left-3 text-[10px] font-extrabold text-white bg-brand/90 backdrop-blur-xs px-2.5 py-1 rounded-full uppercase tracking-wide">
-                  {p.category}
-                </span>
+                <img src={p.image} alt="" loading="lazy" decoding="async" className="w-full h-44 sm:h-48 object-cover" />
               </div>
               <div className="p-4 sm:p-5 space-y-2 flex-1 flex flex-col">
                 <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 font-semibold">

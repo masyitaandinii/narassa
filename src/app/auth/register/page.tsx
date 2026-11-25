@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, User, Mail, Phone, Lock } from "lucide-react";
 import { api, toast } from "@/lib/client";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
-export default function RegisterPage() {
+function RegisterInner() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+  const sp = useSearchParams();
+  const next = sp.get("next") || "/";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +20,7 @@ export default function RegisterPage() {
     try {
       const res = await api<any>("/api/auth/register", { body: form });
       toast(`Pendaftaran berhasil! Selamat datang, ${res.user.name}.`);
-      router.push("/");
+      router.push(next);
       router.refresh();
     } catch (err: any) {
       toast(err.message, "error");
@@ -40,6 +43,19 @@ export default function RegisterPage() {
           </div>
           <h1 className="font-black text-slate-900 text-lg">Daftar Akun Baru</h1>
           <p className="text-xs text-slate-500">Satu akun untuk donasi &amp; kegiatan relawan.</p>
+        </div>
+
+        {/* Google SSO Button */}
+        <div className="space-y-3">
+          <GoogleSignInButton next={next} action="register" />
+
+          <div className="flex items-center gap-3">
+            <span className="flex-1 h-px bg-slate-200" />
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              atau daftar dengan email
+            </span>
+            <span className="flex-1 h-px bg-slate-200" />
+          </div>
         </div>
 
         <form onSubmit={submit} className="space-y-3 text-xs">
@@ -101,19 +117,30 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full py-2.5 bg-brand hover:bg-brand-dark text-white font-bold rounded-lg disabled:opacity-60"
+            className="w-full py-2.5 bg-brand hover:bg-brand-dark text-white font-bold rounded-lg disabled:opacity-60 cursor-pointer"
           >
-            {busy ? "Memproses..." : "Daftar Relawan"}
+            {busy ? "Memproses..." : "Daftar Sekarang"}
           </button>
         </form>
 
         <p className="text-xs text-center text-slate-500">
           Sudah punya akun?{" "}
-          <Link href="/auth/login" className="text-brand-dark font-bold">
+          <Link
+            href={next !== "/" ? `/auth/login?next=${encodeURIComponent(next)}` : "/auth/login"}
+            className="text-brand-dark font-bold hover:underline"
+          >
             Masuk
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterInner />
+    </Suspense>
   );
 }

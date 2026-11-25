@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check-connection": "node scripts/check-connection.ts",
+    "gen:seed": "node scripts/gen-seed-sql.ts > supabase/seed.sql"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
@@ -14,6 +16,7 @@
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.547.0",
     "next": "^15.5.4",
+    "nodemailer": "^10.6.1",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -22,6 +25,7 @@
     "@tailwindcss/postcss": "^4.1.13",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
+    "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",

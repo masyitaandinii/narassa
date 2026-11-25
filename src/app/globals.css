@@ -1,21 +1,30 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   PALET RESMI UI NARASSA (sesuai prompt desain):
-     Primary Green   #0D5C3A   -> varian "brand"
-     Dark Accent     #094E31   -> varian "brand-dark" (latar CTA banner)
-     Light Green Tint #E8F5E9  -> varian "brand-light" (pill/pill aktif)
-                     #F4F9F6   -> varian "brand-soft" (background lembut)
-     Text            #0F172A (slate-900) & #64748B (slate-500)
-     Alert           #E11D48 (red-600) & #D97706 (amber-600)
+   PALET RESMI UI NARASSA — Modern Sage / Forest Green
+     Primary BG        #EAF2EC   -> sage tint (body background)
+     Brand Green       #0F4C2C   -> deep forest green (headers, primary CTA)
+     Brand Dark        #0A3B21   -> darker shade (hover, footer banner)
+     Brand Accent      #10B981   -> emerald accent (progress bars, secondary)
+     Brand Light       #DCF0E3   -> soft pastel green (pills, highlights)
+     Brand Soft        #F2F8F4   -> very light sage (card hover, soft bg)
+     Text Primary      #1E293B   -> slate-800 (headings, body text)
+     Text Secondary    #64748B   -> slate-500 (subtext, muted)
    ========================================================================== */
 @theme {
-  --color-brand: #0d5c3a;
-  --color-brand-dark: #094e31;
-  --color-brand-deep: #073b25;
-  --color-brand-light: #e8f5e9;
-  --color-brand-soft: #f4f9f6;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --color-brand: #0F4C2C;
+  --color-brand-dark: #0A3B21;
+  --color-brand-deep: #072D19;
+  --color-brand-light: #DCF0E3;
+  --color-brand-soft: #F2F8F4;
+  --color-brand-accent: #10B981;
+  --color-sage: #EAF2EC;
+  --color-sage-dark: #D5E5D9;
+}
+
+/* `inline` agar Tailwind membaca --font-jakarta dari next/font (diset di <html>) */
+@theme inline {
+  --font-sans: var(--font-jakarta), system-ui, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 html {
@@ -23,12 +32,14 @@ html {
 }
 
 body {
-  @apply bg-[#F4F9F6] text-slate-800 antialiased;
+  @apply bg-sage text-slate-800 antialiased;
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-  background: #0d5c3a;
+  background: #0F4C2C;
   color: white;
 }
 
@@ -44,6 +55,30 @@ body {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Smooth hover transitions for interactive cards */
+.card-hover {
+  @apply transition-all duration-300 ease-out;
+}
+.card-hover:hover {
+  @apply shadow-lg -translate-y-0.5;
+}
+
+/* Progress bar slide hero: animasi CSS murni (tanpa re-render React) */
+@keyframes hero-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.hero-progress {
+  animation-name: hero-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* Progress bar fill animation */
+.progress-fill {
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media print {

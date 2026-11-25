@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
 import { ScanLine, Camera, CameraOff, Keyboard, UserCheck } from "lucide-react";
 import { api, toast } from "@/lib/client";
 
@@ -23,7 +22,8 @@ export default function AttendanceTabs({ activities }: Props) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [camOn, setCamOn] = useState(false);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scannerRef = useRef<any>(null);
   const busyRef = useRef(false);
 
   const stopCam = async () => {
@@ -86,6 +86,7 @@ export default function AttendanceTabs({ activities }: Props) {
   const startCam = async () => {
     if (camOn) return;
     try {
+      const { Html5Qrcode } = await import("html5-qrcode");
       const scanner = new Html5Qrcode("narassa-qr-region", { verbose: false });
       scannerRef.current = scanner;
       await scanner.start(
@@ -97,10 +98,14 @@ export default function AttendanceTabs({ activities }: Props) {
       setCamOn(true);
     } catch (e: any) {
       scannerRef.current = null;
+      const detail =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+          ? e
+          : "Izin kamera belum diberikan";
       toast(
-        "Kamera tidak dapat diaktifkan. Izinkan akses kamera atau gunakan Input Kode Manual. (" +
-          (e?.message || e) +
-          ")",
+        `Kamera tidak dapat diaktifkan. Izinkan akses kamera atau gunakan Input Kode Manual. (${detail})`,
         "error"
       );
     }

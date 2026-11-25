@@ -3,7 +3,7 @@ import ActivityCard from "@/components/ActivityCard";
 import { EmptyState } from "@/components/ui";
 import ActivityFilter from "@/components/ActivityFilter";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 15;
 export const metadata = { title: "Cari Kegiatan Relawan" };
 
 const CAT_ORDER = ["Semua", "Lingkungan", "Pendidikan", "Bencana", "Anak", "Lansia"];

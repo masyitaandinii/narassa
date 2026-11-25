@@ -45,8 +45,8 @@
 import fs from "fs";
 import path from "path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { buildSeed } from "./seed";
-import type { DB } from "./types";
+import { buildSeed, DEFAULT_PAYMENT_ACCOUNTS } from "./seed";
+import type { DB, PaymentAccount } from "./types";
 
 /** Nama tabel di Supabase — harus SAMA dengan yang ada di supabase/schema.sql */
 const TABLES = [
@@ -111,12 +111,23 @@ export function isCloudDB(): boolean {
 /* Cache snapshot singkat                                                     */
 /* -------------------------------------------------------------------------- */
 
-const CACHE_TTL_MS = 2000;
-let cache: { at: number; data: DB } | null = null;
+const CACHE_TTL_MS = 30_000;
+/** Setelah TTL, data lama tetap dipakai (sambil diperbarui di latar belakang) hingga batas ini. */
+const STALE_MAX_MS = 10 * 60_000;
 
-function invalidateCache() {
-  cache = null;
-}
+/** State disimpan di globalThis agar dipakai bersama oleh semua module/route
+ *  (saat dev Next bisa memuat module yang sama lebih dari sekali). */
+const state = ((globalThis as any).__narassaDb ??= {
+  cache: null,
+  inflight: null,
+  version: 0,
+}) as {
+  cache: { at: number; data: DB } | null;
+  /** fetch yang sedang berjalan — request bersamaan berbagi satu fetch (16 query) */
+  inflight: Promise<DB> | null;
+  /** naik setiap mutate(); mencegah fetch lama menimpa cache yang lebih baru */
+  version: number;
+};
 
 /* -------------------------------------------------------------------------- */
 /* Fallback lokal (data/db.json) — mode dev tanpa Supabase                    */
@@ -124,28 +135,38 @@ function invalidateCache() {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
+let localDB: DB | null = null;
 
 function loadLocal(): DB {
+  if (localDB) return localDB;
   if (!fs.existsSync(DB_PATH)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const seed = buildSeed();
-    fs.writeFileSync(DB_PATH, JSON.stringify(seed, null, 2));
-    return seed;
+    fs.writeFileSync(DB_PATH, JSON.stringify(seed));
+    localDB = seed;
+    return localDB;
   }
   try {
-    return JSON.parse(fs.readFileSync(DB_PATH, "utf-8")) as DB;
+    localDB = JSON.parse(fs.readFileSync(DB_PATH, "utf-8")) as DB;
+    return localDB;
   } catch {
     const seed = buildSeed();
-    fs.writeFileSync(DB_PATH, JSON.stringify(seed, null, 2));
-    return seed;
+    fs.writeFileSync(DB_PATH, JSON.stringify(seed));
+    localDB = seed;
+    return localDB;
   }
 }
 
 function persistLocal(db: DB) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = DB_PATH + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_PATH);
+  localDB = db;
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = DB_PATH + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(db));
+    fs.renameSync(tmp, DB_PATH);
+  } catch (err) {
+    console.error("Gagal menyimpan data lokal:", err);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -156,20 +177,41 @@ function persistLocal(db: DB) {
  * Baca seluruh isi database (15 tabel) sebagai satu objek DB.
  * @returns Promise<DB> — wajib di-`await` dari route handler / server component.
  */
-export async function getDB(): Promise<DB> {
+export async function getDB(opts: { fresh?: boolean } = {}): Promise<DB> {
+  const age = state.cache ? Date.now() - state.cache.at : Infinity;
+  if (state.cache && age < CACHE_TTL_MS) return state.cache.data;
+
   const client = getSupabaseClient();
 
   // Mode lokal -------------------------------------------------------------
   if (!client) {
-    if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data;
     const data = loadLocal();
-    cache = { at: Date.now(), data };
+    state.cache = { at: Date.now(), data };
     return data;
   }
 
-  // Mode Supabase ----------------------------------------------------------
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data;
+  // Mode Supabase: satu refresh dibagi ke semua request yang bersamaan ------
+  if (!state.inflight) {
+    const version = state.version;
+    state.inflight = fetchAll(client)
+      .then((db) => {
+        if (version === state.version) state.cache = { at: Date.now(), data: db };
+        return db;
+      })
+      .finally(() => {
+        state.inflight = null;
+      });
+  }
 
+  // stale-while-revalidate: jangan blokir request demi 16 query bila ada data lama
+  if (!opts.fresh && state.cache && age < STALE_MAX_MS) {
+    state.inflight.catch(() => {});
+    return state.cache.data;
+  }
+  return state.inflight;
+}
+
+async function fetchAll(client: SupabaseClient): Promise<DB> {
   const pairs = await Promise.all(
     TABLES.map(async (table) => {
       const { data, error } = await client.from(table).select("*");
@@ -183,10 +225,7 @@ export async function getDB(): Promise<DB> {
       return [table, data ?? []] as const;
     })
   );
-
-  const db = Object.fromEntries(pairs) as unknown as DB;
-  cache = { at: Date.now(), data: db };
-  return db;
+  return Object.fromEntries(pairs) as unknown as DB;
 }
 
 /**
@@ -208,7 +247,7 @@ export async function getDB(): Promise<DB> {
  *   5. Batalkan cache.
  */
 export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
-  const db = await getDB();
+  const db = await getDB({ fresh: true }); // tulis tidak boleh memakai data basi
   const before = structuredClone(db) as unknown as Record<TableName, unknown[]>;
   const result = fn(db);
   const after = db as unknown as Record<TableName, unknown[]>;
@@ -237,12 +276,18 @@ export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
     }
   }
 
-  invalidateCache();
-  cache = { at: Date.now(), data: db };
+  state.version++;
+  state.cache = { at: Date.now(), data: db };
   return result;
 }
 
 /** Pembuat ID unik (tidak berubah). */
 export function uid(prefix = ""): string {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/** Rekening tujuan donasi (diatur admin); jatuh ke nilai default bila belum diatur/kosong. */
+export function getPaymentAccounts(db: DB): PaymentAccount[] {
+  const value = db.settings.find((s) => s.key === "payment_accounts")?.value;
+  return Array.isArray(value) && value.length ? (value as PaymentAccount[]) : DEFAULT_PAYMENT_ACCOUNTS;
 }

@@ -56,6 +56,32 @@ export function buildSeed(): DB {
       volunteerId: "NRS-VOL-99201",
       createdAt: d(-220),
     },
+    {
+      id: "u-user2",
+      name: "Budi Santoso",
+      email: "budi.santoso@yahoo.com",
+      phone: "085712345678",
+      passwordHash: pw,
+      role: "user" as const,
+      avatar: av("1500648767791-00dcc994a43e"),
+      city: "Jakarta Barat",
+      bio: "Pecinta alam & konservasi mangrove.",
+      volunteerId: "NRS-VOL-88123",
+      createdAt: d(-180),
+    },
+    {
+      id: "u-user3",
+      name: "Amanda Putri",
+      email: "amanda.p@gmail.com",
+      phone: "081345678901",
+      passwordHash: pw,
+      role: "user" as const,
+      avatar: av("1494790108377-be9c29b29330"),
+      city: "Bandung",
+      bio: "Digital volunteer & UI/UX enthusiast.",
+      volunteerId: "NRS-VOL-77456",
+      createdAt: d(-150),
+    },
   ];
 
   const donations: DB["donations"] = [

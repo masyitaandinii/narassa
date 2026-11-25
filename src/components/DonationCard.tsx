@@ -6,37 +6,23 @@ import DonateButton from "./DonateButton";
 
 export default function DonationCard({
   item,
-  showDays = true,
 }: {
   item: Donation;
   showDays?: boolean;
 }) {
   const pct = Math.min(100, Math.round((item.collected / item.target) * 100));
-  const days = Math.ceil(
-    (new Date(item.endDate + "T00:00:00").getTime() - Date.now()) / 86400000
-  );
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 space-y-3 flex flex-col justify-between hover:shadow-md transition">
       <div className="space-y-3">
         <Link href={`/donation/${item.id}`} className="relative block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.image} alt={item.title} className="w-full h-40 object-cover rounded-lg" />
-          <span className="absolute top-2 right-2 bg-slate-950/80 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-            {showDays ? (days > 0 ? `Sisa ${days} Hari` : "Berakhir") : item.category}
-          </span>
-          {item.urgent && (
-            <span className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded uppercase">
-              Mendesak
-            </span>
-          )}
+          <img src={item.image} alt={item.title} loading="lazy" decoding="async" className="w-full h-40 object-cover rounded-lg" />
         </Link>
 
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-brand-dark bg-brand-light px-2 py-0.5 rounded uppercase">
-            {item.category}
-          </span>
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span className="font-medium text-slate-600">{item.category}</span>
           {item.verified && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-brand-dark">
+            <span className="flex items-center gap-1 text-[11px] font-medium text-brand">
               <BadgeCheck className="w-3.5 h-3.5" /> Terverifikasi
             </span>
           )}

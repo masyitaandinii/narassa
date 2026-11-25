@@ -37,6 +37,8 @@ export interface DonationTx {
   donationId: string;
   userId: string | null;
   donorName: string;
+  donorEmail?: string;
+  donorPhone?: string;
   amount: number;
   method: string;
   anon: boolean;

@@ -17,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!admin) return error("Akses admin diperlukan.", 403);
 
   const { id } = await ctx.params;
-  const b = await readBody<{ regenerate?: boolean }>(req).catch(() => ({}) as { regenerate?: boolean });
+  const b = await readBody<{ regenerate?: boolean }>(req);
 
   const result = await mutate((m) => {
     const act = m.activities.find((a) => a.id === id);

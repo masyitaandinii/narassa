@@ -13,7 +13,7 @@
  * ============================================================================
  */
 import { error, json, readBody } from "@/lib/api";
-import { mutate, uid } from "@/lib/db";
+import { getDB, mutate, uid } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -67,7 +67,6 @@ export async function POST(req: Request) {
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return error("Silakan login.", 401);
-  const { getDB } = await import("@/lib/db");
   const db = await getDB();
   return json({ items: db.attendance.filter((a) => a.userId === user.id) });
 }

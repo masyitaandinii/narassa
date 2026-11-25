@@ -15,20 +15,21 @@ export async function POST(req: Request) {
   const db = await getDB();
   if (db.users.some((u) => u.email === email)) return error("Email sudah terdaftar.");
 
+  const passwordHash = await hashPassword(password);
+
   const user = await mutate((m) => {
     const u = {
       id: uid("u-"),
       name,
       email,
       phone,
-      passwordHash: "",
+      passwordHash,
       role: "user" as const,
       city: "",
       bio: "",
       volunteerId: "NRS-VOL-" + Math.floor(10000 + Math.random() * 89999),
       createdAt: new Date().toISOString().split("T")[0],
     };
-    u.passwordHash = "";
     m.users.push(u);
     m.notifications.push({
       id: uid("nt-"),
@@ -40,12 +41,6 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString().split("T")[0],
     });
     return u;
-  });
-
-  const hash = await hashPassword(password);
-  await mutate((m) => {
-    const u = m.users.find((x) => x.id === user.id);
-    if (u) u.passwordHash = hash;
   });
 
   await setSessionCookie(user.id);

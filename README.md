@@ -54,14 +54,15 @@ Acuan: **`skill/Jadwal NARASSA - Company (1).pdf`** (daftar 20 fitur),
 ```
 narassa/
 ├── supabase/
-│   ├── schema.sql      ← DITEMPEL ke Supabase SQL Editor (15 tabel + RLS + fungsi)
-│   └── seed.sql        ← DITEMPEL ke Supabase SQL Editor (data demo + akun demo)
-├── php/                ← API PHP pendukung/opsional (BUKAN untuk Supabase) — lihat php/README.md
+│   ├── schema.sql           ← DITEMPEL ke Supabase SQL Editor (15 tabel + RLS + fungsi)
+│   └── seed.sql             ← DITEMPEL ke Supabase SQL Editor (data demo + akun demo)
 ├── scripts/
-│   └── gen-seed-sql.ts ← pembuat ulang seed.sql: node scripts/gen-seed-sql.ts > supabase/seed.sql
-├── src/lib/db.ts       ← SATU-SATUNYA pintu data (adapter Supabase / lokal)
-├── src/lib/auth.ts     ← session cookie + bcrypt
-└── data/db.json        ← cache lokal mode offline (tidak ikut ter-commit)
+│   ├── check-connection.ts  ← Uji koneksi database (TypeScript): npm run check-connection
+│   └── gen-seed-sql.ts      ← Pembuat ulang seed.sql: npm run gen:seed
+├── src/app/api/             ← Backend REST API (100% TypeScript Next.js App Router)
+├── src/lib/db.ts            ← SATU-SATUNYA pintu data (adapter Supabase / lokal)
+├── src/lib/auth.ts          ← session cookie + bcrypt
+└── data/db.json             ← cache lokal mode offline (tidak ikut ter-commit)
 ```
 
 ---
@@ -170,7 +171,8 @@ Alur uji singkat:
   fungsi `sync_collection()`.
 - `src/app/api/admin/activities/[id]/route.ts` & `certificates/[id]/route.ts`
   — komentar yang mengaitkan endpoint dengan nomor fitur dokumen.
-- `php/README.md` — tujuan folder PHP dan apa yang boleh/bukan ditempel ke Supabase.
+- `scripts/check-connection.ts` & `src/app/api/check-connection/route.ts`
+  — pemeriksaan kesehatan koneksi database dan verifikasi tabel secara otomatis.
 
 ---
 
@@ -223,9 +225,10 @@ sertifikat, dan absen. Admin membuat semua kegiatan & program donasi.
 ## 10. Perintah yang tersedia
 
 ```bash
-npm run dev        # server pengembangan
-npm run build      # build produksi
-npm run start      # jalankan build produksi
-npm run typecheck  # cek tipe TypeScript
-node scripts/gen-seed-sql.ts > supabase/seed.sql   # buat ulang data seed
+npm run dev               # server pengembangan
+npm run build             # build produksi
+npm run start             # jalankan build produksi
+npm run typecheck         # cek tipe TypeScript
+npm run check-connection  # uji koneksi database (TypeScript)
+npm run gen:seed          # buat ulang data seed Supabase
 ```

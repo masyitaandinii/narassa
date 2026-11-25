@@ -1,10 +1,10 @@
-import { json } from "@/lib/api";
+import { error, json } from "@/lib/api";
 import { getDB } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
   const admin = await requireAdmin();
-  if (!admin) return json({ error: "Akses admin diperlukan." }, 403);
+  if (!admin) return error("Akses admin diperlukan.", 403);
   const db = await getDB();
   const totalCollected = db.donations.reduce((s, d) => s + d.collected, 0);
   return json({
